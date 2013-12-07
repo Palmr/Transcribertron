@@ -150,9 +150,13 @@ function start() {
 function stopRecPitch(pitchList,timer) { 
   clearInterval(timer);
   var avg = getAvgPitch(pitchList);
-  if(avg > 1 && pitchList.length > 2)
-    console.log(pitchList.length + ' ' + noteStrings[noteFromPitch(avg)%12] + ' ' + avg);
-	//musicXML(avg);
+  if(avg > 1 && pitchList.length > 2) {
+    //console.log(pitchList.length + ' ' + noteStrings[noteFromPitch(avg)%12] + ' ' + avg);
+    musicXML(avg);
+  } else {
+    musicXML(null);
+  }
+
 }
 
 function updatePitch( time, pitchList ) {
@@ -240,20 +244,31 @@ function musicXML(pitch) {
 var typeStrings = ["16th", "eighth", "quarter", "half", "whole"];
 function serialiseMusicXML(note) {
 	var noteStr = "<note>\r\n";
-	if (note.midiNote != null) {
+
+  var typeStringIndex = Math.log(note.duration) / Math.log(2);
+  typeStringIndex = Math.floor(((Math.round(typeStringIndex*1000000))/1000000));
+
+  typeStringIndex = Math.min(4,typeStringIndex);
+
+  console.log('index' + typeStringIndex);
+
+	if (note.midiNote != null && noteStrings[note.midiNote % 12]) {
+    if(noteStrings[note.midiNote % 12].indexOf('#') > -1)
+      noteStr += "  <accidental>sharp</accidental>\r\n";
 		noteStr += "  <pitch>\r\n";
-		noteStr += "  	 <step>" + noteStrings[note.midiNote % 12] + "<step>\r\n";
-		noteStr += "  	 <octave>" + (Math.floor(note.midiNote/12)-1) + "<octave>\r\n";
+		noteStr += "  	 <step>" + noteStrings[note.midiNote % 12].replace('#','') + "</step>\r\n";
+		noteStr += "  	 <octave>" + (Math.floor(note.midiNote/12)-1) + "</octave>\r\n";
 		noteStr += "  </pitch>\r\n";
 		noteStr += "  <duration>" + note.duration + "</duration>\r\n";
-		//noteStr += "  <type>" + typeStrings[(note.duration)] + "</type>\r\n";
+		noteStr += "  <type>" + typeStrings[typeStringIndex] + "</type>\r\n";
 	}
 	else {
 		noteStr += "  <rest/>\r\n";
 		noteStr += "  <duration>" + note.duration + "</duration>\r\n";
-		//noteStr += "  <type>" + typeStrings[(note.duration)] + "</type>\r\n";
+		noteStr += "  <type>" + typeStrings[typeStringIndex] + "</type>\r\n";
 	}
 	noteStr += "</note>\r\n";
 	
 	console.log(noteStr);
+  document.write(noteStr);
 }
