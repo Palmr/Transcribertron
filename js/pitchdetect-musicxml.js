@@ -3,6 +3,15 @@ var isPlaying = false;
 var sourceNode = null;
 var analyser = null;
 var theBuffer = null;
+var timer = null;
+var metronome = null;
+var metronomeCount = 0;
+var msPer16th = Math.floor(1000/4);
+var mcAtNoteStart = 0;
+var mcAtNoteEnd = 0;
+var outputXml = "";
+var measureCount = 1;
+var pitchList;
 var detectorElem, 
   canvasElem,
   pitchElem,
@@ -11,6 +20,17 @@ var detectorElem,
   detuneAmount;
 
 window.onload = function() {
+
+  var request = new XMLHttpRequest();
+  request.open("GET", "js/gun.wav", true);
+  request.responseType = "arraybuffer";
+  request.onload = function() {
+    audioContext.decodeAudioData( request.response, function(buffer) { 
+        theBuffer = buffer;
+    } );
+  }
+  request.send();
+
   detectorElem = document.getElementById( "detector" );
   canvasElem = document.getElementById( "output" );
   pitchElem = document.getElementById( "pitch" );
@@ -19,6 +39,9 @@ window.onload = function() {
   detuneAmount = document.getElementById( "detune_amt" );
 
   getUserMedia({audio:true}, gotStream);
+
+  outputXml = startMusicXML();
+  outputXml += startMeasure();
 }
 
 function error() {
@@ -45,7 +68,36 @@ function gotStream(stream) {
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
     mediaStreamSource.connect( analyser );
-    setInterval(start,Math.ceil(1000/16))
+    start();
+    startMetronome();
+}
+
+function startMetronome() {
+  metronome = setInterval(tick,msPer16th);
+}
+
+function tick() {
+  metronomeCount++;
+  if(metronomeCount%4==0)
+    document.getElementById('metronome').innerText += '.';
+
+  if(metronomeCount%16==0) {
+    stopRecPitch();
+    outputXml += stopMeasure();
+    outputXml += startMeasure();
+    start();
+  }
+}
+
+function playSound() {
+    var now = audioContext.currentTime;
+
+    sourceNode = audioContext.createBufferSource();
+    sourceNode.buffer = theBuffer;
+
+    sourceNode.connect( analyser );
+    analyser.connect( audioContext.destination );
+    sourceNode.start( now );
 }
 
 var rafID = null;
@@ -142,24 +194,26 @@ function autoCorrelate( buf, sampleRate ) {
 }
 
 function start() {
-  var pitchList = new Array();
-  var timer = setInterval(function() { updatePitch(null, pitchList); }, 1);
-  setTimeout(function() { stopRecPitch(pitchList,timer); },1000/16);
+  pitchList = new Array();
+  mcAtNoteStart = metronomeCount;
+  timer = setInterval(function() { updatePitch(null); }, 1);
+  //setTimeout(function() { stopRecPitch(pitchList,timer); },1000/16);
 }
 
-function stopRecPitch(pitchList,timer) { 
+function stopRecPitch() { 
+  mcAtNoteEnd = metronomeCount;
   clearInterval(timer);
   var avg = getAvgPitch(pitchList);
-  if(avg > 1 && pitchList.length > 2) {
-    //console.log(pitchList.length + ' ' + noteStrings[noteFromPitch(avg)%12] + ' ' + avg);
+  if(avg > 1 && pitchList.length > 20) {
+    //console.log(pitchList);
+    console.log(pitchList.length + ' ' + noteStrings[noteFromPitch(avg)%12] + ' ' + avg);
     musicXML(avg);
-  } else {
-    musicXML(null);
   }
-
+  start();
 }
 
-function updatePitch( time, pitchList ) {
+function updatePitch( time) {
+
 
   var cycles = new Array;
   analyser.getByteTimeDomainData( buf );
@@ -168,6 +222,7 @@ function updatePitch( time, pitchList ) {
   var ac = autoCorrelate( buf, audioContext.sampleRate );
 
   if (ac == -1) {
+    stopRecPitch();
   } else {
     pitch = ac;
 
@@ -180,6 +235,8 @@ function getAvgPitch( pitches ) {
   var total = 0;
   var validPitchCount = 0;
   var filteredPitches = new Array();
+
+  pitches = pitches.slice(Math.floor(pitches.length/10), Math.floor(pitches.length - pitches.length/2));
 
   for(var i=0; i<pitches.length; i++) {
     if(pitches[i]<2000) {
@@ -200,45 +257,34 @@ function getAvgPitch( pitches ) {
 
 }
 
-var lastNote = null;
+var lastNoteEnd = null;
+
 function musicXML(pitch) {
-	if (lastNote != null) {
-		if (pitch > 1) {
-			if (lastNote.midiNote == noteFromPitch(pitch)) {
-				lastNote.duration++;
-			}
-			else {
-				// End the note and start a new one
-				serialiseMusicXML(lastNote);
 
-				lastNote = {
-					midiNote: noteFromPitch(pitch)
-				, duration: 1
-				};
-			}
-		}
-		else {
-			// rest
-			if (lastNote.midiNote == null) {
-				lastNote.duration++;
-			}
-			else {
-				// End the note and start a new one
-				serialiseMusicXML(lastNote);
+  if(mcAtNoteStart > lastNoteEnd + 1) {
+    var duration = mcAtNoteStart - lastNoteEnd;
+    if(duration == 0) duration = 1;
 
-				lastNote = {
-					midiNote: null
-				, duration: 1
-				};
-			}
-		}
-	}
-	else {
-		lastNote = {
-			midiNote: noteFromPitch(pitch)
-		, duration: 1
-		};
-	}
+    var rest = {
+      midiNote: null
+    , duration: duration
+    }
+
+    serialiseMusicXML(rest);  
+  }
+
+  var duration = mcAtNoteEnd - mcAtNoteStart;
+  if(duration == 0) duration = 1;
+
+  var note = {
+    midiNote: noteFromPitch(pitch)
+  , duration: duration
+  }
+
+  serialiseMusicXML(note);
+
+  lastNoteEnd = mcAtNoteEnd;
+
 }
 
 var typeStrings = ["16th", "eighth", "quarter", "half", "whole"];
@@ -249,8 +295,6 @@ function serialiseMusicXML(note) {
   typeStringIndex = Math.floor(((Math.round(typeStringIndex*1000000))/1000000));
 
   typeStringIndex = Math.min(4,typeStringIndex);
-
-  console.log('index' + typeStringIndex);
 
 	if (note.midiNote != null && noteStrings[note.midiNote % 12]) {
     if(noteStrings[note.midiNote % 12].indexOf('#') > -1)
@@ -269,56 +313,65 @@ function serialiseMusicXML(note) {
 	}
 	noteStr += "</note>\r\n";
 	
-	console.log(noteStr);
-  document.write(noteStr);
+  outputXml += noteStr;
 }
 
 function startMeasure(){
-	var measureXML = "<measure number=\"1\">\r\n";
-	measureXML += "  <attributes>\r\n";
-	measureXML += "    <divisions>4</divisions>\r\n"; // 4/4 == 16ths
-	measureXML += "    <key>\r\n";
-	measureXML += "    	 <fifths>0</fifths>\r\n";
-	measureXML += "		 </key>\r\n";
-	measureXML += "    <time>\r\n";
-	measureXML += "      <beats>4</beats>\r\n";
-	measureXML += "      <beat-type>4</beat-type>\r\n";
-	measureXML += "    </time>\r\n";
-	measureXML += "    <clef>\r\n";
-	measureXML += "      <sign>G</sign>\r\n";
-	measureXML += "      <line>2</line>\r\n";
-	measureXML += "    </clef>\r\n";
-	measureXML += "  </attributes>\r\n";
-  measureXML += "	<direction directive=\"yes\" placement=\"above\">\r\n";
-  measureXML += "		<direction-type>\r\n";
-  measureXML += "			<words default-y=\"15\" font-size=\"10.5\" font-weight=\"bold\">60bpm</words>\r\n";
-  measureXML += "		</direction-type>\r\n";
-  measureXML += "		<sound tempo=\"60\"/>\r\n";
-  measureXML += "	</direction>\r\n";
+  var measureXML = "<measure number=\"" + measureCount++ +"\">\r\n";
+  measureXML += "  <attributes>\r\n";
+  measureXML += "    <divisions>4</divisions>\r\n"; // 4/4 == 16ths
+if(measureCount == 2) {  
+  measureXML += "    <key>\r\n";
+  measureXML += "      <fifths>0</fifths>\r\n";
+  measureXML += "    </key>\r\n";
+  measureXML += "    <time>\r\n";
+  measureXML += "      <beats>4</beats>\r\n";
+  measureXML += "      <beat-type>4</beat-type>\r\n";
+  measureXML += "    </time>\r\n";
+    measureXML += "    <clef>\r\n";
+    measureXML += "      <sign>G</sign>\r\n";
+    measureXML += "      <line>2</line>\r\n";
+    measureXML += "    </clef>\r\n";
+  }
+  measureXML += "  </attributes>\r\n";
+  if(measureCount == 2) {
+    measureXML += " <direction directive=\"yes\" placement=\"above\">\r\n";
+    measureXML += "   <direction-type>\r\n";
+    measureXML += "     <words default-y=\"15\" font-size=\"10.5\" font-weight=\"bold\">60bpm</words>\r\n";
+    measureXML += "   </direction-type>\r\n";
+    measureXML += "   <sound tempo=\"60\"/>\r\n";
+    measureXML += " </direction>\r\n";
+  }
 
-	return measureXML;
+  return measureXML;
 }
 
 function stopMeasure(){
-	return "</measure>\r\n";
+  return "</measure>\r\n";
 }
 
 function startMusicXML() {
-	var startXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n";
-	startXML += "<!DOCTYPE score-partwise PUBLIC\r\n";
-	startXML += "    \"-//Recordare//DTD MusicXML 3.0 Partwise//EN\"\r\n";
-	startXML += "    \"http://www.musicxml.org/dtds/partwise.dtd\">\r\n";
-	startXML += "<score-partwise version=\"3.0\">\r\n";
-	startXML += "  <part-list>\r\n";
-	startXML += "    <score-part id=\"P1\">\r\n";
-	startXML += "      <part-name>Guitar</part-name>\r\n";
-	startXML += "    </score-part>\r\n";
-	startXML += "  </part-list>\r\n";
-	startXML += "  <part id=\"P1\">\r\n";
+  var startXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n";
+  startXML += "<!DOCTYPE score-partwise PUBLIC\r\n";
+  startXML += "    \"-//Recordare//DTD MusicXML 3.0 Partwise//EN\"\r\n";
+  startXML += "    \"http://www.musicxml.org/dtds/partwise.dtd\">\r\n";
+  startXML += "<score-partwise version=\"3.0\">\r\n";
+  startXML += "  <part-list>\r\n";
+  startXML += "    <score-part id=\"P1\">\r\n";
+  startXML += "      <part-name>Guitar</part-name>\r\n";
+  startXML += "    </score-part>\r\n";
+  startXML += "  </part-list>\r\n";
+  startXML += "  <part id=\"P1\">\r\n";
 
-	return startXML;
+  return startXML;
 }
 
 function endMusicXML() {
-	return "  </part>\r\n</score-partwise>";
+  return "  </part>\r\n</score-partwise>";
+}
+
+function logOutput() {
+  outputXml += stopMeasure();
+  outputXml += endMusicXML();
+  console.log(outputXml);
 }
