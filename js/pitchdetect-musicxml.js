@@ -289,6 +289,12 @@ function startMeasure(){
 	measureXML += "      <line>2</line>\r\n";
 	measureXML += "    </clef>\r\n";
 	measureXML += "  </attributes>\r\n";
+  measureXML += "	<direction directive=\"yes\" placement=\"above\">\r\n";
+  measureXML += "		<direction-type>\r\n";
+  measureXML += "			<words default-y=\"15\" font-size=\"10.5\" font-weight=\"bold\">60bpm</words>\r\n";
+  measureXML += "		</direction-type>\r\n";
+  measureXML += "		<sound tempo=\"60\"/>\r\n";
+  measureXML += "	</direction>\r\n";
 
 	return measureXML;
 }
