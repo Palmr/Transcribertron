@@ -272,3 +272,47 @@ function serialiseMusicXML(note) {
 	console.log(noteStr);
   document.write(noteStr);
 }
+
+function startMeasure(){
+	var measureXML = "<measure number=\"1\">\r\n";
+	measureXML += "  <attributes>\r\n";
+	measureXML += "    <divisions>4</divisions>\r\n"; // 4/4 == 16ths
+	measureXML += "    <key>\r\n";
+	measureXML += "    	 <fifths>0</fifths>\r\n";
+	measureXML += "		 </key>\r\n";
+	measureXML += "    <time>\r\n";
+	measureXML += "      <beats>4</beats>\r\n";
+	measureXML += "      <beat-type>4</beat-type>\r\n";
+	measureXML += "    </time>\r\n";
+	measureXML += "    <clef>\r\n";
+	measureXML += "      <sign>G</sign>\r\n";
+	measureXML += "      <line>2</line>\r\n";
+	measureXML += "    </clef>\r\n";
+	measureXML += "  </attributes>\r\n";
+
+	return measureXML;
+}
+
+function stopMeasure(){
+	return "</measure>\r\n";
+}
+
+function startMusicXML() {
+	var startXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n";
+	startXML += "<!DOCTYPE score-partwise PUBLIC\r\n";
+	startXML += "    \"-//Recordare//DTD MusicXML 3.0 Partwise//EN\"\r\n";
+	startXML += "    \"http://www.musicxml.org/dtds/partwise.dtd\">\r\n";
+	startXML += "<score-partwise version=\"3.0\">\r\n";
+	startXML += "  <part-list>\r\n";
+	startXML += "    <score-part id=\"P1\">\r\n";
+	startXML += "      <part-name>Guitar</part-name>\r\n";
+	startXML += "    </score-part>\r\n";
+	startXML += "  </part-list>\r\n";
+	startXML += "  <part id=\"P1\">\r\n";
+
+	return startXML;
+}
+
+function endMusicXML() {
+	return "  </part>\r\n</score-partwise>";
+}
