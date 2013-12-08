@@ -4,10 +4,14 @@ var analyser = null;
 var theBuffer = null;
 var timer = null;
 var metronome = null;
+var running = false;
 
 var metronomeCount = 0;
 var metronomeBeatCount = 0;
 var metronomeNoteValue = 16; // It's at a 16th note granularity
+
+var clickContext = new AudioContext();
+var clickBuffer = null;
 
 var tempo = 60; // 60 bpm
 var beatsPerBar = 4; // 4 beats per bar
@@ -31,11 +35,11 @@ var recordStream = null;
 window.onload = function() {
 
   var request = new XMLHttpRequest();
-  request.open("GET", "js/gun.wav", true);
+  request.open("GET", "js/click.wav", true);
   request.responseType = "arraybuffer";
   request.onload = function() {
-    audioContext.decodeAudioData( request.response, function(buffer) { 
-        theBuffer = buffer;
+    clickContext.decodeAudioData( request.response, function(buffer) { 
+        clickBuffer = buffer;
     } );
   }
   request.send();
@@ -47,10 +51,11 @@ function runToggle() {
 		btn.value = "Stop";
 		
 		getUserMedia({audio:true}, gotStream);
+    running = true;
 	}
 	else if (btn.value == "Stop") {
 		btn.value = "Start";
-		
+		running = false;
     stopRecPitch();
 		clearInterval(metronome);
 		if (recordStream) {
@@ -105,6 +110,7 @@ function tick() {
 	// Display tick once per beat
   if(metronomeCount % (metronomeNoteValue / noteValuePerBeat) == 0){
 		document.getElementById('metronome').innerText += ++metronomeBeatCount;
+    playSound();
 	}
 	// Every half-beat put a separator, helps visualise underlying speed
   if((metronomeCount + (noteValuePerBeat/2)) % (metronomeNoteValue / noteValuePerBeat) == 0){
@@ -112,26 +118,21 @@ function tick() {
 	}
 
 	// Once per bar reset the ticks and bar-break
-  if(metronomeCount % metronomeNoteValue == 0) {
+  if(metronomeCount % metronomeNoteValue == 0 && metronomeCount > 0) {
 		document.getElementById('metronome').innerText = '1';
 		metronomeBeatCount = 1;
     stopRecPitch();
     outputXml += stopMeasure();
     outputXml += startMeasure();
-    start();
   }
   metronomeCount++;
 }
 
 function playSound() {
-	var now = audioContext.currentTime;
-
-	sourceNode = audioContext.createBufferSource();
-	sourceNode.buffer = theBuffer;
-
-	sourceNode.connect( analyser );
-	analyser.connect( audioContext.destination );
-	sourceNode.start( now );
+	sourceNode = clickContext.createBufferSource();
+  sourceNode.buffer = clickBuffer;
+  sourceNode.connect(clickContext.destination);
+  sourceNode.noteOn(0);
 }
 
 var rafID = null;
@@ -237,13 +238,14 @@ function stopRecPitch() {
   mcAtNoteEnd = metronomeCount;
   clearInterval(timer);
   var avg = getAvgPitch(pitchList);
-	console.log(pitchList);
   if(avg > 1 && pitchList.length > 20) {
-    //console.log(pitchList);
+    console.log(pitchList);
     console.log(pitchList.length + ' ' + noteStrings[noteFromPitch(avg)%12] + ' ' + avg);
     recordNote(avg);
   }
-  //start();
+  if(running) {
+    start();
+  }
 }
 
 function updatePitch( time) {
@@ -263,13 +265,13 @@ function updatePitch( time) {
 }
 
 function getAvgPitch( pitches ) {
-  var total = 0;
-  var validPitchCount = 0;
+  //var total = 0;
+  //var validPitchCount = 0;
 
-  pitches = pitches.slice(Math.floor(pitches.length / 10), pitches.length - Math.floor(pitches.length / 20));
+  pitches = pitches.slice(Math.floor(pitches.length / 10), pitches.length - Math.floor(pitches.length / 5));
 
 	// To test, a rounded mode
-/*	roundedPitches = [];
+	roundedPitches = [];
 	for(var i=0; i < pitches.length; i++) {
     if(pitches[i] < 2000) {
       roundedPitches.push(Math.floor(pitches[i]));
@@ -302,10 +304,9 @@ function getAvgPitch( pitches ) {
 	};
 	
 	var pitchMode = mode(roundedPitches);
-	console.log(pitchMode);
 	return pitchMode;
-*/
-	
+
+	/*
   for(var i=0; i < pitches.length; i++) {
     if(pitches[i]<2000) {
       total += pitches[i];
@@ -315,7 +316,7 @@ function getAvgPitch( pitches ) {
 
   var mean = total/validPitchCount;
 
-  return mean;
+  return mean;*/
 }
 
 var lastNoteEnd = null;
@@ -351,7 +352,7 @@ function recordNote(pitch) {
 
 var typeStrings = ["16th", "eighth", "quarter", "half", "whole"];
 function serialiseMusicXML(note) {
-	var noteStr = "            <note>\r\n";
+	var noteStr = "      <note>\r\n";
 
   var typeStringIndex = Math.log(note.duration) / Math.log(2);
   typeStringIndex = Math.floor((typeStringIndex * 1000000) / 1000000);
@@ -365,6 +366,9 @@ function serialiseMusicXML(note) {
 		noteStr += "        <pitch>\r\n";
 		noteStr += "  	       <step>" + noteStrings[note.midiNote % 12].replace('#','') + "</step>\r\n";
 		noteStr += "  	       <octave>" + (Math.floor(note.midiNote/12)-1) + "</octave>\r\n";
+    if(noteStrings[note.midiNote % 12].indexOf('#') > -1) {
+      noteStr += "         <alter>1</alter>\r\n";
+    }    
 		noteStr += "        </pitch>\r\n";
 		noteStr += "        <duration>" + note.duration + "</duration>\r\n";
 		noteStr += "        <type>" + typeStrings[typeStringIndex] + "</type>\r\n";
@@ -438,7 +442,7 @@ function endMusicXML() {
 function exportMusicXML() {
   outputXml += stopMeasure();
   outputXml += endMusicXML();
-  console.log(outputXml);
+  //console.log(outputXml);
 
 	var pom = document.createElement('a');
 	pom.setAttribute('href', 'data:text/xml;charset=utf-8,' + encodeURIComponent(outputXml));
