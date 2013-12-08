@@ -1,0 +1,33 @@
+<html>
+  <head>
+    <title>Canvas Test</title>
+    <!--<script type="text/javascript" src="http://code.jquery.com/jquery-2.0.3.min.js"></script>-->
+  </head>
+  <body>
+    <h1>Test For Canvas</h1>
+    <div>
+      <button onclick="startRecording()">Start</button>
+      <button onclick="endRecording()">Stop</button>
+    </div>
+    <div>
+      <button onclick="startNote([1, 4, false])">Start A</button>
+      <button onclick="startNote([2, 4, false])">Start B</button>
+      <button onclick="startNote([3, 4, false])">Start C</button>
+      <button onclick="startNote([4, 4, false])">Start D</button>
+      <button onclick="startNote([5, 4, false])">Start E</button>
+      <button onclick="startNote([6, 4, false])">Start F</button>
+      <button onclick="startNote([7, 4, false])">Start G</button>
+    </div>
+      <button onclick="startNote([5, 2, false])">Start E2</button>
+      <button onclick="startNote([5, 3, false])">Start E3</button>
+      <button onclick="startNote([5, 4, false])">Start E4</button>
+      <button onclick="startNote([5, 5, false])">Start E5</button>
+      <button onclick="startNote([5, 6, false])">Start E6</button>
+      <button onclick="endNote()">End Random Note</button>
+    </div>
+    <div style="height: 200px;">
+      <canvas id="test" width="600" height="600" style="width: 600px; height: 600px; border: 1px solid black;"></canvas>
+    </div>
+    <script src="drawStave.js"></script>
+  </body>
+</html>
