@@ -31,10 +31,10 @@ var leftOfStave = staveOffset*scaleFactor;
 
 var barsSeenOnScreen = 1;
 
-var inProgressNoteColour = '#dddddd';
-var finishedNoteColour = '#8ED6FF';
-var backgroundColour = '#FFFFFF';
-var currentPositionColour = '#000000'
+var inProgressNoteColour = '#4d4d4d';
+var finishedNoteColour = '#D4145A';
+var backgroundColour = '#333';
+var currentPositionColour = '#ffffff'
 
 var cleffImage = new Image();
 var cleffXOffset = -60*scaleFactor;
@@ -47,7 +47,7 @@ var cleffYOffset = -20;
 window.requestAnimFrame = (function(callback) {
   return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame ||
   function(callback) {
-    window.setTimeout(callback, 1000 / 60);
+    window.setTimeout(callback, 1000 / 5);
   };
 })();
 
@@ -93,6 +93,7 @@ function drawStave(context) {
   The start is an array.
 */
 function drawStaveLine(context, start) {
+  context.strokeStyle = 'white';  
   context.beginPath();
   context.moveTo(start[0], start[1]);
   context.lineTo(canvas.width, start[1]);
@@ -107,7 +108,7 @@ function startRecording() {
   notes = [];
   startTime = (new Date()).getTime();
   animate(canvas, context, startTime, scaleFactor, staveHeight, staveOffset);
-  //console.log("Start Time: " + startTime);
+  console.log("Start Time: " + startTime);
 }
 
 function endRecording() {
@@ -119,7 +120,7 @@ function startNote() {
   if (!noteRecording) {
     notes[currentNote] = [note, Math.round(((new Date()).getTime()-startTime)/sixteenthTraverseTime), null];
     noteRecording = true;
-    //console.log("Started Note " + currentNote + " at " + notes[currentNote][1]);
+    console.log("Started Note " + currentNote + " at " + notes[currentNote][1]);
   }
 }
 
@@ -169,7 +170,7 @@ function drawNotes(drawOffset) {
     context.fillStyle = noteColour;
     context.fill();
     context.lineWidth = 2;
-    context.strokeStyle = 'black';
+    context.strokeStyle = noteColour;
     context.stroke();
     context.globalAlpha=1;
     
@@ -181,15 +182,16 @@ function drawCleff() {
   context.rect(0, 0, leftOfStave, canvas.height);
   context.fillStyle = backgroundColour;
   context.fill();
-  context.drawImage(cleffImage, cleffXOffset, topOfStave+cleffYOffset);
   // Draw Stave lines
   for (var i = 0; i <= 4; i++) {
     context.beginPath();
     context.moveTo(0, topOfStave+(((staveHeight/4)*i)*scaleFactor));
     context.lineTo(leftOfStave, topOfStave+(((staveHeight/4)*i)*scaleFactor));
     context.lineWidth = scaleFactor;
+    context.strokeStyle = 'white';
     context.stroke();
   };
+  context.drawImage(cleffImage, cleffXOffset, topOfStave+cleffYOffset);  
 }
 
 function animate(canvas, context, startTime) {
@@ -250,7 +252,7 @@ function animate(canvas, context, startTime) {
     });
   }
   else {
-    console.log('ended');
+    //console.log('ended');
   }
 }
 
@@ -273,8 +275,8 @@ function initCanvas() {
   drawStave(context, canvas.width, canvas.height, staveOffset, staveHeight, scaleFactor);
   drawBars(0);
 
-  cleffImage.src = 'notation/cleff.svg';
-  cleffImage.width = '100';
+  cleffImage.src = 'js/notation/cleff.svg';
+  cleffImage.width = '75';
   cleffImage.height = '100';
 
   drawCleff();

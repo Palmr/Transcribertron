@@ -52,17 +52,21 @@ function runToggle() {
 		
 		getUserMedia({audio:true}, gotStream);
     running = true;
+
+    document.getElementById('download').style.display="none";
 	}
 	else if (btn.value == "Stop") {
-		btn.value = "Start";
+		btn.style.display="none";
 		running = false;
     stopRecPitch();
 		clearInterval(metronome);
 		if (recordStream) {
 			recordStream.stop();
 		}
-		
-		exportMusicXML();
+
+    document.getElementById('metronome').innerText="";
+    document.getElementById('download').style.display="inline";
+    endRecording();
 	}
 }
 
@@ -100,6 +104,7 @@ function gotStream(stream) {
 	outputXml += startMeasure();
 	start();
 	startMetronome();
+  startRecording();
 }
 
 function startMetronome() {
@@ -109,17 +114,17 @@ function startMetronome() {
 function tick() {
 	// Display tick once per beat
   if(metronomeCount % (metronomeNoteValue / noteValuePerBeat) == 0){
-		document.getElementById('metronome').innerText += ++metronomeBeatCount;
+		document.getElementById('metronome').innerText += ' ' + ++metronomeBeatCount + ' ';
     playSound();
 	}
 	// Every half-beat put a separator, helps visualise underlying speed
   if((metronomeCount + (noteValuePerBeat/2)) % (metronomeNoteValue / noteValuePerBeat) == 0){
-		document.getElementById('metronome').innerText += ', ';
+		document.getElementById('metronome').innerText += ' + ';
 	}
 
 	// Once per bar reset the ticks and bar-break
   if(metronomeCount % metronomeNoteValue == 0 && metronomeCount > 0) {
-		document.getElementById('metronome').innerText = '1';
+		document.getElementById('metronome').innerText = ' 1 ';
 		metronomeBeatCount = 1;
     stopRecPitch();
     outputXml += stopMeasure();
@@ -238,10 +243,12 @@ function stopRecPitch() {
   mcAtNoteEnd = metronomeCount;
   clearInterval(timer);
   var avg = getAvgPitch(pitchList);
-  if(avg > 1 && pitchList.length > 20) {
+  if(avg > 1 && pitchList.length > 15) {
     console.log(pitchList);
     console.log(pitchList.length + ' ' + noteStrings[noteFromPitch(avg)%12] + ' ' + avg);
     recordNote(avg);
+  } else {
+    endNote([0,0,false]);
   }
   if(running) {
     start();
@@ -261,6 +268,7 @@ function updatePitch( time) {
 	else {
     pitch = ac;
     pitchList.push(pitch);
+    startNote();
   }
 }
 
@@ -352,6 +360,7 @@ function recordNote(pitch) {
 
 var typeStrings = ["16th", "eighth", "quarter", "half", "whole"];
 function serialiseMusicXML(note) {
+
 	var noteStr = "      <note>\r\n";
 
   var typeStringIndex = Math.log(note.duration) / Math.log(2);
@@ -372,6 +381,16 @@ function serialiseMusicXML(note) {
 		noteStr += "        </pitch>\r\n";
 		noteStr += "        <duration>" + note.duration + "</duration>\r\n";
 		noteStr += "        <type>" + typeStrings[typeStringIndex] + "</type>\r\n";
+
+    //draw on stave
+    endNote(
+      [
+        noteStrings[note.midiNote % 12].charCodeAt(0)-64
+      , (Math.floor(note.midiNote/12)-1)
+      , (noteStrings[note.midiNote % 12].indexOf('#') > -1)
+      ]
+    );
+
 	}
 	else {
 		noteStr += "        <rest/>\r\n";
