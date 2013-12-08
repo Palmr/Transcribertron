@@ -2,7 +2,7 @@
 
 var canvas = document.getElementById('test');
 var context = canvas.getContext('2d');
-var scaleFactor = backingScale(context);
+var scaleFactor = 2;
 var notes = [];
 
 var staveHeight = 100;
@@ -22,12 +22,17 @@ var noteRecording = false;
 var ended = true;
 
 // Hard code the bar size to 200.
-var barSize = 200;
+var barSize = 400;
 var pixelsPerMillisecond = (barSize/barTraverseTime)*scaleFactor;
 
 var barsDisplayed = ((canvas.width/scaleFactor)/barSize);
 var topOfStave = ((canvas.height-(staveHeight*scaleFactor)/2));
 var leftOfStave = staveOffset*scaleFactor;
+
+var barsSeenOnScreen = 1;
+
+var inProgressNoteColour = '#dddddd';
+var finishedNoteColour = '#8ED6FF';
 
 
 // Functions
@@ -51,7 +56,7 @@ function backingScale(context) {
 
 function drawBars(drawOffset) {
   // draw the vertial bar lines
-  for (var i = Math.ceil(barsDisplayed); i >= 0; i--) {
+  for (var i = currentBar + 2; i >= 0; i--) {
     drawBarLine(context, [staveOffset,topOfStave], i, drawOffset);
   }
 }
@@ -103,7 +108,8 @@ function endRecording() {
   ended = true;
 }
 
-function startNote(note) {
+function startNote() {
+  var note = [3, 4, false];
   if (!noteRecording) {
     notes[currentNote] = [note, Math.round(((new Date()).getTime()-startTime)/sixteenthTraverseTime), null];
     noteRecording = true;
@@ -121,8 +127,9 @@ function calculateNoteYPos(note) {
   return topOfStave + ((notePos + octavePos)*-1);
 }
 
-function endNote() {
+function endNote(note) {
   if (noteRecording) {
+    notes[currentNote][0] = note;
     notes[currentNote][2] = Math.round(((new Date()).getTime()-startTime)/sixteenthTraverseTime);
     currentNote++;
     noteRecording = false;
@@ -132,21 +139,34 @@ function endNote() {
 
 function drawNotes(drawOffset) {
   var noteWidth;
+  var yPos;
+  var noteHeight;
+  var noteColour;
   for (var i = notes.length - 1; i >= 0; i--) {
     if (notes[i][2] === null) {
       noteWidth = (Math.round(((new Date()).getTime()-startTime)/sixteenthTraverseTime) - notes[i][1]) * sixteenthTraverseTime * pixelsPerMillisecond;
+      yPos = topOfStave;
+      noteHeight = staveHeight * scaleFactor;
+      context.globalAlpha=0.5;
+      noteColour = inProgressNoteColour;
     }
     else {
       noteWidth = ((notes[i][2] - notes[i][1]) * sixteenthTraverseTime * pixelsPerMillisecond);
+      yPos = calculateNoteYPos(notes[i][0]);
+      noteHeight = ((staveHeight*scaleFactor)/4);
+      noteColour = finishedNoteColour;
+      context.globalAlpha = 0.8;
     }
     console.log("drawing Note("+notes[i][2] + ", " + notes[i][1] +") at " + (pixelsPerMillisecond*(notes[i][1] - startTime)) + ", " + noteWidth);
     context.beginPath();
-    context.rect(((staveOffset * scaleFactor +(pixelsPerMillisecond*(notes[i][1]*sixteenthTraverseTime)))-(drawOffset)), calculateNoteYPos(notes[i][0]), noteWidth, ((staveHeight*scaleFactor)/4));
-    context.fillStyle = '#8ED6FF';
+    context.rect(((staveOffset * scaleFactor +(pixelsPerMillisecond*(notes[i][1]*sixteenthTraverseTime)))-(drawOffset)), (yPos+(noteHeight*0.125)), noteWidth, (noteHeight*0.75));
+    context.fillStyle = noteColour;
     context.fill();
     context.lineWidth = 2;
     context.strokeStyle = 'black';
     context.stroke();
+    context.globalAlpha=1;
+    
   };
 }
 
@@ -167,7 +187,7 @@ function animate(canvas, context, startTime) {
   
   if (!ended) {
 
-    var maxOffset = (((canvas.width - staveOffset)/barsDisplayed)/scaleFactor)*2;
+    var maxOffset = (((canvas.width - staveOffset)/barsDisplayed)/scaleFactor)*barsSeenOnScreen;
     var cursorOffset = moveBy;
     var drawOffset = 0;
 
